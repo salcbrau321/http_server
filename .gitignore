@@ -1,0 +1,10 @@
+build/
+bin/
+
+notes.db
+
+*~
+*.swp
+
+.DS_Store
+
