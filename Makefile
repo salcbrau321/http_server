@@ -3,7 +3,7 @@ CFLAGS = -Wall -Wextra -g -Iinclude
 BUILD_DIR = build
 BIN_DIR = bin
 SRC_DIR = src
-OBJ = $(BUILD_DIR)/http_server.o $(BUILD_DIR)/router.o
+OBJ = $(BUILD_DIR)/http_server.o $(BUILD_DIR)/router.o $(BUILD_DIR)/http_request.o $(BUILD_DIR)/http_response.o
 LIB = $(BUILD_DIR)/libhttpserver.a
 DEMO_BIN = $(BIN_DIR)/hello_server
 
