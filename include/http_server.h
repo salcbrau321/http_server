@@ -1,11 +1,18 @@
 #ifndef HTTP_SERVER_H
 #define HTTP_SERVER_H
 
-#include "request.h"
+#include "http_request.h"
+#include "http_response.h"
 
-typedef void (*RouteHandler)(Request *, Response *);
+typedef struct HttpServer HttpServer;
+typedef void (*HttpHandler)(HttpRequest*, HttpResponse*);
 
-void http_register_handler(const char *method, const char *path, RouteHandler handler);
-void http_server_listen(int port);
+HttpServer *http_server_new(int port);
+void http_server_on(HttpServer *srv,
+                    const char *method,
+                    const char *path_template,
+                    HttpHandler handler);
+void http_server_run(HttpServer *srv);
+void http_server_free(HttpServer *srv);
 
 #endif

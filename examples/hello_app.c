@@ -1,12 +1,14 @@
 #include "http_server.h"
-#include "request.h"
+#include "http_request.h"
+#include "http_response.h"
 
-void handle_hello(Request *req, Response *res) {
-    res_send_json(res, 200, "{\"message\": \"Hello from C server\"}");
+void handle_hello(HttpRequest *req, HttpResponse *res) {
+    http_response_send_json(res, 200, "{\"message\": \"Hello from C server\"}");
 }
 
 int main() {
-    http_register_handler("GET", "/hello", handle_hello);
-    http_server_listen(8000);
+    HttpServer* srv = http_server_new(8000);
+    http_server_on(srv, "GET", "/hello", handle_hello); 
+    http_server_run(srv);
     return 0;
 }

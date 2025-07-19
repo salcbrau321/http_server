@@ -1,11 +1,15 @@
 #ifndef ROUTER_H
 #define ROUTER_H
 
-#include "request.h"
+#include "http_server.h"
 
-typedef void (*RouteHandler)(Request *, Response *);
+typedef struct{
+    char  *method;
+    char  *path_template;
+    HttpHandler handler;
+} Route;
 
-void router_add(const char *method, const char *path, RouteHandler handler);
-RouteHandler router_match(const char *method, const char *path);
+void router_add(const char *method, const char *path_template, HttpHandler handler); 
+HttpHandler router_match(HttpRequest *req);
 
 #endif
