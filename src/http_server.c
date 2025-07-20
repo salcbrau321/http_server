@@ -8,6 +8,7 @@
 #include "router.h"
 #include "http_request.h"
 #include "http_response.h"
+#include "http_request_parser.h"
 
 struct HttpServer {
     int port;
@@ -66,48 +67,18 @@ void http_server_run(HttpServer *srv) {
             continue;
         }
 
-        char method[16], raw_uri[256];
-        sscanf(buffer, "%15s %255s", method, raw_uri);
-
-        HttpRequest req = {0};
-        req.method = strdup(method);
-
-        char *q = strchr(raw_uri, '?');
-        if (q) {
-            *q = '\0';
-            req.path = strdup(raw_uri);
-            char *qs = q + 1;
-            int qc = 0;
-            char *param = strtok(qs, "&");
-            while (param && qc < MAX_QUERY_PARAMS) {
-                char *eq = strchr(param, '=');
-                if (eq) {
-                    *eq = '\0';
-                    strncpy(req.query_name[qc], param, MAX_PARAM_NAME-1);
-                    strncpy(req.query_val[qc], eq+1, MAX_PARAM_VALUE-1);
-                    qc++;
-                }
-                param = strtok(NULL, "&");
-            }
-            req.query_count = qc;
-        } else {
-            req.path = strdup(raw_uri);
-            req.query_count = 0;
-        }
-
-        char *body = strstr(buffer, "\r\n\r\n");
-        req.body = body ? body + 4 : NULL;
-
-        HttpHandler h = router_match(&req);
+        HttpRequest* req = calloc(1, sizeof(HttpRequest));
+        HttpRequestParser* parser = http_request_parser_new();
+        http_request_parser_execute(parser, buffer, (size_t)n, req); 
+        HttpHandler h = router_match(req);
         HttpResponse *res = http_response_new(client_fd);
         if (h) {
-            h(&req, res);
+            h(req, res);
         } else {
             http_response_send_json(res, 404, "{\"error\":\"Not Found\"}");
         }
         http_response_free(res);
-        free(req.method);
-        free(req.path);
+        http_request_free(req);
     }
 }
 
