@@ -3,7 +3,7 @@ CFLAGS = -Wall -Wextra -g -Iinclude -fsanitize=address
 BUILD_DIR = build
 BIN_DIR = bin
 SRC_DIR = src
-OBJ = $(BUILD_DIR)/http_server.o $(BUILD_DIR)/router.o $(BUILD_DIR)/http_request.o $(BUILD_DIR)/http_response.o $(BUILD_DIR)/http_request_parser.o  
+OBJ = $(BUILD_DIR)/http_server.o $(BUILD_DIR)/router.o $(BUILD_DIR)/http_request.o $(BUILD_DIR)/http_response.o $(BUILD_DIR)/http_request_parser.o $(BUILD_DIR)/utils.o $(BUILD_DIR)/header_map.o 
 LIB = $(BUILD_DIR)/libhttpserver.a
 DEMO_BIN = $(BIN_DIR)/hello_server
 

@@ -6,64 +6,14 @@
 #include <stdlib.h>
 #include "http_request_parser.h"
 #include "http_request.h"
+#include "header_map.h"
+#include "utils.h"
 #include <errno.h>
 #include <stdio.h>
 #include <limits.h>
 #include <ctype.h>
 
 #define BUF_SIZE 1024
-
-static inline void trim(char *s) {
-    char *p = s;
-    while (*p && isspace((unsigned char)*p)) p++;
-    if (p != s) memmove(s, p, strlen(p) + 1);
-
-    size_t len = strlen(s);
-    while (len && isspace((unsigned char)s[len-1])) {
-        s[--len] = '\0';
-    }
-}
-
-
-static inline void buffer_clear(char* buffer, size_t* len) {
-    *len = 0;
-    buffer[0] = '\0';
-}
-
-static inline long parse_long(const char *s) {
-    if (!s) return 0;
-
-    char *end;
-    errno = 0;                   
-    long val = strtol(s, &end, 10);
-    if (end == s) {
-        return 0;
-    }
-    if (errno == ERANGE || val < INT_MIN || val > INT_MAX) {
-        return 0;
-    }
-    return val;
-}
-
-static inline char* copy_token(const char *buffer) {
-    size_t len = strlen(buffer);
-    char* dst = malloc(len + 1);
-    if (!dst) {
-        return NULL;
-    }
-    memcpy(dst, buffer, len + 1);
-    trim(dst);
-    return dst;
-}
-
-static inline bool buffer_append(char* buffer, size_t* len, size_t max_len, char c) {
-    if (*len + 1 >= max_len) {
-        return false;
-    }
-    buffer[(*len)++] = c;
-    buffer[*len] = '\0';
-    return true;
-}
 
 HttpRequestParser* http_request_parser_new() {
     HttpRequestParser* parser = malloc(sizeof(HttpRequestParser));
@@ -93,7 +43,7 @@ int http_request_parser_execute(HttpRequestParser* parser, const char* data, siz
                 break;
 
             case METHOD_SPACE:
-                req->method = copy_token(buffer);
+                req->method = buffer_copy(buffer);
                 buffer_clear(buffer, &blen);
                 buffer_append(buffer, &blen, BUF_SIZE, c);
                 parser_state = TARGET;
@@ -108,7 +58,7 @@ int http_request_parser_execute(HttpRequestParser* parser, const char* data, siz
                 break;
 
             case TARGET_SPACE:
-                req->path = copy_token(buffer);
+                req->path = buffer_copy(buffer);
                 buffer_clear(buffer, &blen);
                 buffer_append(buffer, &blen, BUF_SIZE, c);
                 parser_state = HTTP_VERSION;
@@ -123,7 +73,7 @@ int http_request_parser_execute(HttpRequestParser* parser, const char* data, siz
                 break;
 
             case REQLINE_ALMOST_DONE:
-                req->version = copy_token(buffer);
+                req->version = buffer_copy(buffer);
                 buffer_clear(buffer, &blen);
                 buffer_append(buffer, &blen, BUF_SIZE, c);
                 if (c == '\n') {
@@ -161,22 +111,15 @@ int http_request_parser_execute(HttpRequestParser* parser, const char* data, siz
 
             case HEADER_ALMOST_DONE:
                 if (nlen == 4 && strncasecmp(name_buffer, "Host", 4) == 0) {
-                    req->host = copy_token(buffer);
+                    req->host = buffer_copy(buffer);
                 }
                 else if (nlen == 14 && strncasecmp(name_buffer, "Content-Length", 14) == 0) {
-                    req->content_length = copy_token(buffer);
-                }
-                else if (nlen == 12 && strncasecmp(name_buffer, "Content-Type", 12) == 0) {
-                    req->content_type = copy_token(buffer);
-                }
-                else if (nlen == 17 && strncasecmp(name_buffer, "Transfer-Encoding", 17) == 0) {
-                    req->transfer_encoding = copy_token(buffer);
-                }
-                else if (nlen == 10 && strncasecmp(name_buffer, "Connection", 10) == 0) {
-                    req->connection = copy_token(buffer);
+                    req->content_length = buffer_copy(buffer);
                 }
                 else {
-                
+                    trim(name_buffer);
+                    trim(buffer);
+                    header_map_add(req->headers, name_buffer, buffer); 
                 }
                 parser_state = HEADER_DONE;
                 break;
@@ -209,12 +152,16 @@ int http_request_parser_execute(HttpRequestParser* parser, const char* data, siz
                 buffer_append(buffer, &blen, BUF_SIZE, c);
                 if (blen == parse_long(req->content_length)) {
                     parser_state = COMPLETE;
-                    req->body = copy_token(buffer);
+                    req->body = buffer_copy(buffer);
                 }
                 break;
         }
     }
-
+    for (size_t i = 0; i < req->headers->count; i++) {
+        for (Header *e = req->headers->items[i]; e; e = e->next) {
+            printf("%s: %s\n", e->name, e->value);
+        }
+    }
     if (parser_state == COMPLETE) {
         char *q = strchr(req->path, '?');
         if (q) {

@@ -5,6 +5,8 @@
 #define MAX_PARAM_NAME 32
 #define MAX_PARAM_VALUE 128
 
+#include "header_map.h"
+
 typedef struct {
     char* method;
     char* path;
@@ -12,9 +14,9 @@ typedef struct {
 
     char* host;
     char* content_length;
-    char* content_type;
-    char* transfer_encoding;
-    char* connection;
+
+    HeaderMap* headers;
+
     char* body;
 
     int query_count;
@@ -22,6 +24,7 @@ typedef struct {
     char query_val[MAX_QUERY_PARAMS][MAX_PARAM_VALUE];
 } HttpRequest;
 
+HttpRequest* http_request_new();
 const char *http_request_query(const HttpRequest *req, const char *name);
 void http_request_free(const HttpRequest *req);
 

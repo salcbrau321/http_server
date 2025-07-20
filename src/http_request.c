@@ -1,5 +1,13 @@
 #include <string.h>
 #include "http_request.h"
+#include "header_map.h"
+
+HttpRequest* http_request_new() {
+    HttpRequest* req = calloc(1, sizeof *req);
+    if (!req) return NULL;
+    req->headers = header_map_new();
+    return req;
+}
 
 const char *http_request_query(const HttpRequest *req, const char *name) {
     for (int i = 0; i < req->query_count; i++) {
@@ -16,10 +24,10 @@ void http_request_free(const HttpRequest* req) {
     if (req->path) free(req->path);
     if (req->version) free(req->version);
     if (req->host) free(req->host);
-    if (req->content_type) free(req->content_type);
-    if (req->transfer_encoding) free(req->transfer_encoding);
-    if (req->connection) free(req->connection);
+    if (req->content_length) free(req->content_length);
     if (req->body) free(req->body);
+
+    header_map_free(req->headers);
     free(req);
 }
 

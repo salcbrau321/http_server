@@ -67,7 +67,7 @@ void http_server_run(HttpServer *srv) {
             continue;
         }
 
-        HttpRequest* req = calloc(1, sizeof(HttpRequest));
+        HttpRequest* req = http_request_new();
         HttpRequestParser* parser = http_request_parser_new();
         http_request_parser_execute(parser, buffer, (size_t)n, req); 
         HttpHandler h = router_match(req);
