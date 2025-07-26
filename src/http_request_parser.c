@@ -24,7 +24,22 @@ HttpRequestParser* http_request_parser_new() {
     return parser;
 }
 
-int http_request_parser_execute(HttpRequestParser* parser, const char* data, size_t len, HttpRequest* req) {
+ParseResult http_request_parser_execute(HttpRequestParser* parser, const char* data, size_t len) {
+    ParseResult r = {0}; 
+    r.status = PARSE_INCOMPLETE;
+    r.http_error = HTTP_ERR_NONE;
+    r.parser_error = PERR_NONE;
+    r.error_message = NULL;
+    r.bytes_consumed = 0;
+   
+    r.request = http_request_new();
+    if (!r.request) {
+        r.status = PARSE_ERROR_INTERNAL;
+        r.parser_error = PERR_OOM;
+        r.error_message = "Out of memory allocating HttpRequest";
+        return r;
+    }
+    
     HttpParserState parser_state = parser->state;
     char buffer[BUF_SIZE];
     size_t blen = 0;
@@ -37,13 +52,18 @@ int http_request_parser_execute(HttpRequestParser* parser, const char* data, siz
             case METHOD:
                 if (c == ' ') {
                     parser_state = METHOD_SPACE;
+                } else if (c == "\r") {
+                    handle_request_error(r, HTTP_ERR_BAD_REQUEST, "Invalid new line while parsing method");
                 } else {
                     buffer_append(buffer, &blen, BUF_SIZE, c);
                 }
                 break;
 
             case METHOD_SPACE:
-                req->method = buffer_copy(buffer);
+                if (blen == 0) {
+                    handle_request_error(r, HTTP_ERR_BAD_REQUEST, "Method is missing");
+                }
+                r.request->method = buffer_copy(buffer);
                 buffer_clear(buffer, &blen);
                 buffer_append(buffer, &blen, BUF_SIZE, c);
                 parser_state = TARGET;
@@ -58,7 +78,7 @@ int http_request_parser_execute(HttpRequestParser* parser, const char* data, siz
                 break;
 
             case TARGET_SPACE:
-                req->path = buffer_copy(buffer);
+                r.request->path = buffer_copy(buffer);
                 buffer_clear(buffer, &blen);
                 buffer_append(buffer, &blen, BUF_SIZE, c);
                 parser_state = HTTP_VERSION;
@@ -73,7 +93,7 @@ int http_request_parser_execute(HttpRequestParser* parser, const char* data, siz
                 break;
 
             case REQLINE_ALMOST_DONE:
-                req->version = buffer_copy(buffer);
+                r.request->version = buffer_copy(buffer);
                 buffer_clear(buffer, &blen);
                 buffer_append(buffer, &blen, BUF_SIZE, c);
                 if (c == '\n') {
@@ -111,15 +131,15 @@ int http_request_parser_execute(HttpRequestParser* parser, const char* data, siz
 
             case HEADER_ALMOST_DONE:
                 if (nlen == 4 && strncasecmp(name_buffer, "Host", 4) == 0) {
-                    req->host = buffer_copy(buffer);
+                    r.request->host = buffer_copy(buffer);
                 }
                 else if (nlen == 14 && strncasecmp(name_buffer, "Content-Length", 14) == 0) {
-                    req->content_length = buffer_copy(buffer);
+                    r.request->content_length = buffer_copy(buffer);
                 }
                 else {
                     trim(name_buffer);
                     trim(buffer);
-                    header_map_add(req->headers, name_buffer, buffer); 
+                    header_map_add(r.request->headers, name_buffer, buffer); 
                 }
                 parser_state = HEADER_DONE;
                 break;
@@ -136,7 +156,7 @@ int http_request_parser_execute(HttpRequestParser* parser, const char* data, siz
                 break;
 
             case HEADER_SECTION_ALMOST_DONE:
-                if (parse_long(req->content_length) > 0) {
+                if (parse_long(r.request->content_length) > 0) {
                     parser_state = HEADER_SECTION_DONE;
                 } else {
                     parser_state = COMPLETE;
@@ -150,23 +170,27 @@ int http_request_parser_execute(HttpRequestParser* parser, const char* data, siz
 
             case BODY:
                 buffer_append(buffer, &blen, BUF_SIZE, c);
-                if (blen == parse_long(req->content_length)) {
+                if (blen == parse_long(r.request->content_length)) {
                     parser_state = COMPLETE;
-                    req->body = buffer_copy(buffer);
+                    r.request->body = buffer_copy(buffer);
                 }
                 break;
         }
+        // means error was encountered, so we must exit
+        if (r.status != PARSE_INCOMPLETE) {
+            break;
+        }
     }
-    for (size_t i = 0; i < req->headers->count; i++) {
-        for (Header *e = req->headers->items[i]; e; e = e->next) {
+    for (size_t i = 0; i < r.request->headers->count; i++) {
+        for (Header *e = r.request->headers->items[i]; e; e = e->next) {
             printf("%s: %s\n", e->name, e->value);
         }
     }
     if (parser_state == COMPLETE) {
-        char *q = strchr(req->path, '?');
+        char *q = strchr(r.request->path, '?');
         if (q) {
             *q = '\0';
-            req->path = strdup(req->path);
+            r.request->path = strdup(r.request->path);
             char *qs = q + 1;
             int qc = 0;
             char *param = strtok(qs, "&");
@@ -174,19 +198,31 @@ int http_request_parser_execute(HttpRequestParser* parser, const char* data, siz
                 char *eq = strchr(param, '=');
                 if (eq) {
                     *eq = '\0';
-                    strncpy(req->query_name[qc], param, MAX_PARAM_NAME-1);
-                    strncpy(req->query_val[qc], eq+1, MAX_PARAM_VALUE-1);
+                    strncpy(r.request->query_name[qc], param, MAX_PARAM_NAME-1);
+                    strncpy(r.request->query_val[qc], eq+1, MAX_PARAM_VALUE-1);
                     qc++;
                 }
                 param = strtok(NULL, "&");
             }
-            req-> query_count = qc;
+            r.request-> query_count = qc;
         } else {
-            req->path = strdup(req->path);
-            req->query_count = 0;
+            r.request->path = strdup(r.request->path);
+            r.request->query_count = 0;
         }
     }
     parser->state = parser_state;
-    return 0;
+    r.status = PARSE_OK;
+    return r;
 }
 
+void handle_request_error(ParseResult r, HttpErrorCode error,  char* message) {
+    r.status = PARSE_ERROR_REQUEST;
+    r.http_error = error;
+    r.error_message = message;
+}
+
+void handle_parser_error(ParseResult r, ParserErrorCode error,  char* message) {
+    r.status = PARSE_ERROR_INTERNAL;
+    r.http_error = error;
+    r.error_message = message;
+}

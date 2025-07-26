@@ -67,19 +67,38 @@ void http_server_run(HttpServer *srv) {
             continue;
         }
 
-        HttpRequest* req = http_request_new();
         HttpRequestParser* parser = http_request_parser_new();
-        http_request_parser_execute(parser, buffer, (size_t)n, req); 
-        HttpHandler h = router_match(req);
+        ParseResult result = http_request_parser_execute(parser, buffer, (size_t)n); 
+        
+        HttpRequest* req = result.request;
         HttpResponse *res = http_response_new(client_fd);
+        
+        if (result.status == PARSE_ERROR_REQUEST) {
+            http_response_send_json(res, 404, "{\"error\": \"Bad Request\"}");
+            free_resources(req, res, parser);
+            continue;
+        }
+
+
+        if (result.status == PARSE_ERROR_INTERNAL) {
+            http_response_send_json(res, 500, "{\"error\": \"Internal Server Error\"}");
+            free_resources(req, res, parser);
+            continue;
+        }
+       
+        HttpHandler h = router_match(req);
         if (h) {
             h(req, res);
         } else {
             http_response_send_json(res, 404, "{\"error\":\"Not Found\"}");
         }
-        http_response_free(res);
-        http_request_free(req);
     }
+}
+
+void free_resources(HttpRequest* req, HttpResponse* res, HttpRequestParser* parser) {
+    http_response_free(res);
+    http_request_free(req);
+    free(parser);
 }
 
 void http_server_free(HttpServer *srv) {
