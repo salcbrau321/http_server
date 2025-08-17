@@ -184,8 +184,8 @@ ParseResult http_request_parser_execute(HttpRequestParser* parser, const char* d
             *q = '\0';
             char* old = parser->request->path;
             parser->request->path = strdup(old);
+            char *qs = strdup(q + 1);
             free(old);
-            char *qs = q + 1;
             int qc = 0;
             char *param = strtok(qs, "&");
             while (param && qc < MAX_QUERY_PARAMS) {
@@ -205,7 +205,7 @@ ParseResult http_request_parser_execute(HttpRequestParser* parser, const char* d
         }
         r.request = parser->request;
         parser->request = NULL;
-        r.status = PARSE_OK;
+        r.status = PARSE_COMPLETE;
         r.parser_state = parser_state;
         parser_state = HTTP_STATE_IDLE;
     } else if (parser_state != HTTP_STATE_ERROR) {

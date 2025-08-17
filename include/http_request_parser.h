@@ -25,7 +25,7 @@ typedef enum {
 } HttpParserState;
 
 typedef enum {
-    PARSE_OK,
+    PARSE_COMPLETE,
     PARSE_INCOMPLETE,
     PARSE_ERROR_INTERNAL,
     PARSE_ERROR_REQUEST

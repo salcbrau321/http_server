@@ -13,6 +13,23 @@ static void assert_streq(const char* actual, const char* expected, const char* w
               what, expected, actual);
 }
 
+static HttpRequest* parse_get_line(const char* target_with_query) {
+    char msg[512];
+    snprintf(
+        msg,
+        sizeof(msg),
+        "GET %s HTTP/1.1\r\nHost: ex\r\n\r\n", target_with_query);
+    HttpRequestParser* p = http_request_parser_new();
+    ParseResult r = http_request_parser_execute(p, msg, strlen(msg));
+    cr_assert_eq(
+        r.status,
+        PARSE_COMPLETE,
+        "did not complete request");
+    HttpRequest* req = r.request;
+    free(p);
+    return req;
+}
+
 Test(HelloSuite, Sanity) {
     cr_assert_str_eq("foo", "foo", "Criterion should be working");
 }
@@ -31,7 +48,7 @@ Test(HttpParser_Method, ParseMethod_ValidTokens_StaysInMethodUntilSpace) {
         cr_assert_eq(
             r.status,
             PARSE_INCOMPLETE,
-            "Expected status PARSE_OK - %d, got status %d for %s",
+            "Expected status PARSE_COMPLETE - %d, got status %d for %s",
             PARSE_INCOMPLETE,
             r.status,
             good[i]);
@@ -50,7 +67,7 @@ Test(HttpParser_Method, ParseMethod_ValidTokens_StaysInMethodUntilSpace) {
         cr_assert_eq(
             r.status,
             PARSE_INCOMPLETE,
-            "Expected status PARSE_OK - %d, got status %d for %s (space feed) ",
+            "Expected status PARSE_COMPLETE - %d, got status %d for %s (space feed) ",
             PARSE_INCOMPLETE,
             r.parser_state,
             good[i]);
@@ -91,6 +108,17 @@ Test(HttpParser_Method, ParseMethod_InvalidTokens_RequestError) {
     }
 }
 
+
+Test(HttpParser_Query, Parser_Query_BasicPairs) {
+    HttpRequest* req = parse_get_line("/path?a=1&b=2");
+    cr_assert_eq(req->query_count, 2);
+    assert_streq(req->query_name[0], "a", "name0");
+    assert_streq(req->query_val[0], "1", "val0");
+    assert_streq(req->query_name[1], "b", "name1");
+    assert_streq(req->query_val[1], "2", "val1");
+    http_request_free(req);
+}
+
 Test(HttpParser_EndToEnd, Parser_Get_TwoChunks_Completes) {
     const char* msg = 
         "GET /cats/1 HTTP/1.1\r\n"
@@ -111,7 +139,7 @@ Test(HttpParser_EndToEnd, Parser_Get_TwoChunks_Completes) {
     ParseResult r1 = http_request_parser_execute(p, part1, len1);
     cr_assert_neq(
         r1.status,
-        PARSE_OK,
+        PARSE_COMPLETE,
         "Parser marked COMPLETED too early after first chunk");
     cr_assert_not_null(
         p->request,
@@ -124,7 +152,7 @@ Test(HttpParser_EndToEnd, Parser_Get_TwoChunks_Completes) {
     ParseResult r2 = http_request_parser_execute(p, part2, len2);
     cr_assert_eq(
         r2.status, 
-        PARSE_OK,
+        PARSE_COMPLETE,
         "Parser failed to complete after second chunk");
     cr_assert_not_null(r2.request, "ParseResult.request must be set on COMPLETE");
     cr_assert_null(p->request, "Parser request pointer should be NULL after handoff");
@@ -169,19 +197,19 @@ Test(HttpParser_EndToEnd, Parser_Get_Pipeline_TwoInSecondChunk) {
     HttpRequestParser *p = http_request_parser_new();
 
     ParseResult a = http_request_parser_execute(p, req1, half);
-    cr_assert_neq(a.status, PARSE_OK);
+    cr_assert_neq(a.status, PARSE_COMPLETE);
 
     size_t off = 0;
 
     ParseResult b = http_request_parser_execute(p, chunk2 + off, len2 - off);
-    cr_assert_eq(b.status, PARSE_OK);
+    cr_assert_eq(b.status, PARSE_COMPLETE);
     cr_assert(b.bytes_consumed > 0 && b.bytes_consumed <= len2 - off);
     assert_streq(b.request->path, "/one", "first path");
     http_request_free(b.request);
     off += b.bytes_consumed;
 
     ParseResult c = http_request_parser_execute(p, chunk2 + off, len2 - off);
-    cr_assert_eq(c.status, PARSE_OK);
+    cr_assert_eq(c.status, PARSE_COMPLETE);
     assert_streq(c.request->path, "/two", "second path");
     http_request_free(c.request);
 
