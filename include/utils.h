@@ -9,5 +9,6 @@ long safe_parse_long(const char* s);
 void buffer_clear(char* buffer, size_t* len);
 bool buffer_append(char* buffer, size_t* len, size_t max_len, char c);
 char* buffer_copy(const char* buffer);
+bool is_tchar(char c);
 
 #endif

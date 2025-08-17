@@ -57,3 +57,17 @@ char* buffer_copy(const char *buffer) {
     return dst;
 }
 
+bool is_tchar(char c) {
+    if ((c >= 'A' && c <= 'Z') ||
+        (c >= 'a' && c <= 'z') ||
+        (c >= '0' && c <= '9')) return true;
+
+    switch (c) {
+        case '!': case '#': case '$': case '%': case '&': case '\'':
+        case '*': case '+': case '-': case '.': case '^': case '_':
+        case '`': case '|': case '~':
+            return true;
+        default:
+            return false;
+     }
+}

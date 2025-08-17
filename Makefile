@@ -1,9 +1,16 @@
 CC := gcc
-CFLAGS := -Wall -Wextra -g -Iinclude -fsanitize=address
-LDFLAGS := -fsanitize=address
+TEST_DEBUG ?= 1
+ifeq ($(TEST_DEBUG),1)
+DBGFLAGS := -g -O0 -fno-inline
+else
+DBGFLAGS :=
+endif
+CFLAGS := -Wall -Wextra -Iinclude $(DBGFLAGS)
+
+TEST_DIR := tests
+TEST_CFLAGS := -Wall -Wextra -Iinclude -I$(TEST_DIR) $(DBGFLAGS)
 
 SRC_DIR := src
-TEST_DIR := tests
 BUILD_DIR := build
 BIN_DIR := bin
 
@@ -32,19 +39,18 @@ $(LIB): $(OBJS)
 	ar rcs $@ $^
 
 demo: all | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $(DEMO_BIN) $(DEMO_SRC) $(LIB) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $(DEMO_BIN) $(DEMO_SRC) $(LIB)
 
 $(BUILD_DIR)/%.test.o: $(TEST_DIR)/%.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -I$(TEST_DIR) -c $< -o $@
+	$(CC) $(TEST_CFLAGS) -c $< -o $@
 
 $(TEST_BIN): $(LIB) $(TEST_OBJS)
-	$(CC) $(CFLAGS) -o $@ $(TEST_OBJS) $(LIB) -lcriterion $(LDFLAGS)
+	$(CC) $(TEST_CFLAGS) -o $@ $(TEST_OBJS) $(LIB) -lcriterion
 
 test: $(TEST_BIN)
 	@echo "=== Running HTTP Server unit tests ==="
 	@./$(TEST_BIN)
 
-# Clean up
 clean:
 	rm -rf $(BUILD_DIR) $(BIN_DIR)
 

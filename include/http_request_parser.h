@@ -3,6 +3,27 @@
 
 #include "http_request.h"
 
+#define BUF_SIZE 1024
+
+typedef enum {
+    HTTP_STATE_IDLE,
+    HTTP_STATE_METHOD,
+    HTTP_STATE_TARGET,
+    HTTP_STATE_HTTP_VERSION,
+    HTTP_STATE_REQLINE_ALMOST_DONE,
+    HTTP_STATE_REQLINE_DONE,
+    HTTP_STATE_HEADER_NAME,
+    HTTP_STATE_HEADER_COLON,
+    HTTP_STATE_HEADER_VALUE,
+    HTTP_STATE_HEADER_ALMOST_DONE,
+    HTTP_STATE_HEADER_DONE,
+    HTTP_STATE_HEADER_SECTION_ALMOST_DONE,
+    HTTP_STATE_HEADER_SECTION_DONE,
+    HTTP_STATE_BODY,
+    HTTP_STATE_COMPLETE,
+    HTTP_STATE_ERROR
+} HttpParserState;
+
 typedef enum {
     PARSE_OK,
     PARSE_INCOMPLETE,
@@ -28,7 +49,8 @@ typedef enum {
 
 typedef struct {
     ParseStatus status;
-    
+    HttpParserState parser_state;
+
     HttpErrorCode http_error;
     ParserErrorCode parser_error;
     const char* error_message;
@@ -37,30 +59,15 @@ typedef struct {
     size_t bytes_consumed;
 } ParseResult;
 
-typedef enum {
-    METHOD,
-    METHOD_SPACE,
-    TARGET,
-    TARGET_SPACE,
-    HTTP_VERSION,
-    REQLINE_ALMOST_DONE,
-    REQLINE_DONE,
-    HEADER_NAME,
-    HEADER_COLON,
-    HEADER_VALUE,
-    HEADER_ALMOST_DONE,
-    HEADER_DONE,
-    HEADER_SECTION_ALMOST_DONE,
-    HEADER_SECTION_DONE,
-    BODY,
-    COMPLETE,
-    ERROR
-} HttpParserState;
-
 typedef struct {
     HttpParserState state;
+    HttpRequest* request;
     size_t content_length;
     size_t bytes_read;
+    char buffer[BUF_SIZE];
+    size_t blen;
+    char name_buffer[BUF_SIZE];
+    size_t nlen;
 } HttpRequestParser;
 
 HttpRequestParser* http_request_parser_new();
